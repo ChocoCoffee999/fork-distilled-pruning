@@ -1,3 +1,9 @@
+# Distilled Pruning: Using Synthetic Data to Win the Lottery
+
+This repo is based off of MTT (see https://georgecazenavette.github.io/mtt-distillation).  We included two notebooks named distilled_pruning that contains all the sufficient code for the paper. This repository is still a work in progress and will be updated with documentation in the near future
+
+# Please see the original readme for MTT below:
+
 # Dataset Distillation by Matching Training Trajectories
 
 ### [Project Page](https://georgecazenavette.github.io/mtt-distillation/) | [Paper](https://arxiv.org/abs/2203.11932)
