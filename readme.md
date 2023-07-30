@@ -1,5 +1,6 @@
 # Distilled Pruning: Using Synthetic Data to Win the Lottery
+This work introduces a novel approach to pruning deep learning models by using distilled data. Unlike conventional strategies which primarily focus on architectural or algorithmic optimization, our method reconsiders the role of data in these scenarios. Distilled datasets capture essential patterns from larger datasets, and we demonstrate how to leverage this capability to enable a computationally efficient pruning process. Our approach can find sparse, trainable subnetworks (a.k.a. Lottery Tickets) up to 5x faster than Iterative Magnitude Pruning at comparable sparsity on CIFAR-10. The experimental results highlight the potential of using distilled data for resource-efficient neural network pruning, model compression, and neural architecture search.
+
+Arxiv Link: https://arxiv.org/abs/2307.03364
 
 This repo is based off of MTT (see https://georgecazenavette.github.io/mtt-distillation).  We included two notebooks named DistilledPruning for each dataset that contains all the sufficient code for the paper. Instructions to run those is in the notebook. All code is assumed to run on CUDA and has been developed on Paperspace's Pytorch Image.
-
-This is a work in progress and paper will be posted to arxix soon.
