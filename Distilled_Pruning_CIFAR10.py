@@ -235,6 +235,10 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
             np.save(path + name + '_log', np.array([accs, zeros, totals, reinit_acc, time_takens, sparsities]))
         else:
             reinit_acc.append(0)
+        if not os.path.exists(f'{os.getcwd()}/logs/{name}/{seed}'):
+            if not os.path.exists(f'{os.getcwd()}/logs/{name}'):
+                os.mkdir(f'{os.getcwd()}/logs/{name}')
+            os.mkdir(f'{os.getcwd()}/logs/{name}/{seed}')
         f = open(f'{os.getcwd()}/logs/{name}/{seed}/seed_logs.txt', 'w')
         f.write(f'{i}')
     #If validate = False, then we still want to validate the final sparsity mask. just not all the masks.
