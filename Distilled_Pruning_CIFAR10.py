@@ -150,6 +150,12 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
         model_rewind = copy.deepcopy(model).to(device)
         #torch.save(model.state_dict(), path + name + '_RewindWeights' + '_' + str(k))
         if not os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}'):
+            if not os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}'):
+                if not os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}'):
+                    if not os.path.exists(f'{os.getcwd()}/saves'):
+                        os.mkdir(f'{os.getcwd()}/saves')
+                    os.mkdir(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}')
+                os.mkdir(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}')
             os.mkdir(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}')
         torch.save(model.state_dict(), f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/initial_weight.pth') 
     
@@ -186,13 +192,19 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
             zero, total = sparsity_print(model)
             zeros.append(zero)
             totals.append(total)
-            sparsities.append(round(zero/total), 3)
+            sparsities.append(round(zero/total, 3))
             #Rewind Weights
             for idx, (module, _) in enumerate(get_parameters_to_prune(model)):
                 with torch.no_grad():
                     module_rewind = get_parameters_to_prune(model_rewind)[idx][0]
                     module.weight_orig.copy_(module_rewind.weight)
             if not os.path.exists(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}'):
+                if not os.path.exists(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}'):
+                    if not os.path.exists(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}'):
+                        if not os.path.exists(f'{os.getcwd()}/dumps'):
+                            os.mkdir(f'{os.getcwd()}/dumps')
+                        os.mkdir(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}')
+                    os.mkdir(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}')
                 os.mkdir(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}')
             np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/log_{i}', np.array([accs, zeros, totals, reinit_acc, time_takens, sparsities]))
         
