@@ -30,7 +30,7 @@ from torchvision.transforms import ToTensor
 #Import from MTT code
 from networks import ConvNet, AlexNet
 from distill import ParamDiffAug
-from utils import evaluate_synset, get_network
+from utils import evaluate_synset, evaluate_sourceset, get_network
 import argparse
 
 import optuna
@@ -126,30 +126,48 @@ def sparsity_print(model):
     #TODO: Implement Node Sparsity
     return zero, total
 
-def DistilledPruning(model, name, path, images_train, labels_train, train_loader, test_loader, start_iter = 0, end_iter = 30, num_epochs_distilled = 1000, num_epochs_real = 60, k = 0, amount = .2, save_model = True, validate = False, seed = 0, reinit = False, reinit_model = None, distilled_lr = .01):
+def DistilledPruning(model, name, path, images_train, labels_train, train_loader, test_loader, input_args, start_iter = 0, end_iter = 30, num_epochs_distilled = 1000, num_epochs_real = 60, k = 0, amount = .2, save_model = True, validate = False, seed = 0, reinit = False, reinit_model = None, distilled_lr = .01):
     torch.manual_seed(seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
     accs = []
     zeros = []
     totals = []
     reinit_acc = []
+    time_takens = []
+    sparsities = []
     
+    if start_iter > 0:
+        if os.path.exists(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/log_{start_iter-1}'):
+            [accs, zeros, totals, reinit_acc, time_takens, sparsities] = list(map(list, np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/log_{start_iter-1}')))
+        else:
+            print(f'{"-"*20}+error wrong start_iter+{"-"*20}')
     #Create rewind weights at initailization
-    model_rewind = copy.deepcopy(model).to(device)
-    torch.save(model.state_dict(), path + name + '_RewindWeights' + '_' + str(k))
+
+    if os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/initial_weight.pth'):
+        model.load_state_dict(torch.load(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/initial_weight.pth'))
+        model_rewind = copy.deepcopy(model).to(device)
+    else:
+        model_rewind = copy.deepcopy(model).to(device)
+        #torch.save(model.state_dict(), path + name + '_RewindWeights' + '_' + str(k))
+        if not os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}'):
+            os.mkdir(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}')
+        torch.save(model.state_dict(), f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/initial_weight.pth') 
     
     #Use if you want to try rewinding to an early point in training, this does not work well, so we suggest k=0 always.
     if k != 0:
         args = argparse.Namespace(lr_net=str(distilled_lr), device='cuda', epoch_eval_train=str(k),batch_train=512,dataset='cifar10',dsa=True,dsa_strategy='color_crop_cutout_flip_scale_rotate',dsa_param = ParamDiffAug(), dc_aug_param=None, zca_trans=kornia.enhance.ZCAWhitening(eps=0.1, compute_inv=True)) #, zca_trans=kornia.enhance.ZCAWhitening(eps=0.1, compute_inv=True)
         model_rewind, acc_train_list, acc_test = evaluate_synset(0, model_rewind,images_train,labels_train,test_loader,args)
         
-    
     for i in range(start_iter,end_iter):
         print('Distilled Pruning Iteration ', i)
         #Set distilled pruning training args for MTT eval
         args = argparse.Namespace(lr_net='.01', device='cuda', epoch_eval_train=str(num_epochs_distilled),batch_train=512,dataset='cifar10',dsa=True,dsa_strategy='color_crop_cutout_flip_scale_rotate',dsa_param = ParamDiffAug(), dc_aug_param=None, zca_trans=kornia.enhance.ZCAWhitening(eps=0.1, compute_inv=True)) #, zca_trans=kornia.enhance.ZCAWhitening(eps=0.1, compute_inv=True)
         #MTT Training on Distilled Data
-        model, acc_train_list, acc_test = evaluate_synset(i+1, model,images_train,labels_train,test_loader,args)
+        if input_args.distilled_pruning:
+            model, acc_train_list, acc_test, train_time = evaluate_synset(i, model,images_train,labels_train,test_loader,args)
+        else:
+            model, acc_train_list, acc_test, train_time = evaluate_sourceset(i, model,train_loader,test_loader,args)
+        time_takens.append(train_time)
         prune.global_unstructured(get_parameters_to_prune(model),pruning_method=prune.L1Unstructured,amount=amount)
         #Rewind Weights
         for idx, (module, _) in enumerate(get_parameters_to_prune(model)):
@@ -158,7 +176,8 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
                 module.weight_orig.copy_(module_rewind.weight)
     
         if save_model:
-            torch.save(model.state_dict(), path + name + '_iter' + str(i+1))
+            #torch.save(model.state_dict(), path + name + '_iter' + str(i+1))
+            torch.save(model.state_dict(), f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/weight_{i}.pth')
             
         #Rewind weights back to initialization and train on real data to validate this sparsity mask
         if validate:
@@ -167,13 +186,15 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
             zero, total = sparsity_print(model)
             zeros.append(zero)
             totals.append(total)
+            sparsities.append(round(zero/total), 3)
             #Rewind Weights
             for idx, (module, _) in enumerate(get_parameters_to_prune(model)):
                 with torch.no_grad():
                     module_rewind = get_parameters_to_prune(model_rewind)[idx][0]
                     module.weight_orig.copy_(module_rewind.weight)
-                    
-            np.save(path + name + '_log', np.array([accs, zeros, totals, reinit_acc]))
+            if not os.path.exists(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}'):
+                os.mkdir(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}')
+            np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/log_{i}', np.array([accs, zeros, totals, reinit_acc, time_takens, sparsities]))
         
         if reinit:
             #Rewind Weights to Reinit Model
@@ -189,19 +210,25 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
                 with torch.no_grad():
                     module_rewind = get_parameters_to_prune(model_rewind)[idx][0]
                     module.weight_orig.copy_(module_rewind.weight)
-            np.save(path + name + '_log', np.array([accs, zeros, totals, reinit_acc]))
+            np.save(path + name + '_log', np.array([accs, zeros, totals, reinit_acc, time_takens, sparsities]))
         else:
             reinit_acc.append(0)
+        f = open(f'{os.getcwd()}/logs/{name}/{seed}/seed_logs.txt', 'w')
+        f.write(f'{i}')
     #If validate = False, then we still want to validate the final sparsity mask. just not all the masks.
     if not validate:
         train(model, train_loader,num_epochs = num_epochs_real)
         acc = (test(model, test_loader))
         zero, total = sparsity_print(model)
         np.save(path + name + '_log', np.array([acc, zero, total, reinit]))
+    
+    np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/time_takens.dat', np.array(time_takens))
+    np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/bestaccuracies.dat', np.array(accs))
+    np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/sparsities.dat', np.array(sparsities))
 
-def main(i_args):
+def main(input_args):
     model = None
-    if i_args.model == "cait":
+    if input_args.model == "cait":
         model = cait.CaiT( 
             image_size = 32,
             patch_size = 4,
@@ -214,7 +241,7 @@ def main(i_args):
             dropout = 0.1,
             emb_dropout = 0.1,
             layer_dropout = 0.05)
-    elif i_args.model == "cait_small":
+    elif input_args.model == "cait_small":
         model = cait.CaiT(
             image_size = 32,
             patch_size = 4,
@@ -227,12 +254,12 @@ def main(i_args):
             dropout = 0.1,
             emb_dropout = 0.1,
             layer_dropout = 0.05)
-    elif i_args.model == "swin":
+    elif input_args.model == "swin":
         model = swin.swin_t(
             window_size=4,
             num_classes = 10,
             downscaling_factors=(2,2,2,1))
-    elif i_args.model == "simplevit":
+    elif input_args.model == "simplevit":
         model = simplevit.SimpleViT(
             image_size = 32,
             patch_size = 4,
@@ -241,7 +268,7 @@ def main(i_args):
             depth = 6,
             heads = 8,
             mlp_dim = 512)
-    elif i_args.model == "vit":
+    elif input_args.model == "vit":
         model = vit.ViT(
             image_size = 32,
             patch_size = 4,
@@ -252,7 +279,7 @@ def main(i_args):
             mlp_dim = 512,
             dropout = 0.1,
             emb_dropout = 0.1)
-    elif i_args.model == "vit_small":
+    elif input_args.model == "vit_small":
         model = vit_small.ViT(
             image_size = 32,
             patch_size = 4,
@@ -263,7 +290,7 @@ def main(i_args):
             mlp_dim = 512,
             dropout = 0.1,
             emb_dropout = 0.1)
-    elif i_args.model == "vit_tiny":
+    elif input_args.model == "vit_tiny":
         model = vit_small.ViT(
             image_size = 32,
             patch_size = 4,
@@ -274,21 +301,39 @@ def main(i_args):
             mlp_dim = 256,
             dropout = 0.1,
             emb_dropout = 0.1)
-    name = i_args.name
-    path = i_args.path
-    start_iter = i_args.start_iter
-    end_iter = i_args.end_iter
-    num_epochs_distilled = i_args.num_epochs_distilled
-    num_epochs_real = i_args.num_epochs_real
-    k = i_args.k
-    amount = i_args.amount
-    save_model = i_args.save_model
-    validate = i_args.validate
-    seed = i_args.seed
-    reinit = i_args.reinit
-    reinit_model = i_args.reinit_model
-    distilled_lr = i_args.distilled_lr
-    DistilledPruning(model, name, path, images_train, labels_train, train_loader, test_loader,
+    name = input_args.name
+    path = input_args.path
+    start_iter = input_args.start_iter
+    end_iter = input_args.end_iter
+    num_epochs_distilled = input_args.num_epochs_distilled
+    num_epochs_real = input_args.num_epochs_real
+    k = input_args.k
+    amount = input_args.amount
+    save_model = input_args.save_model
+    validate = input_args.validate
+    reinit = input_args.reinit
+    reinit_model = input_args.reinit_model
+    distilled_lr = input_args.distilled_lr
+    for seed in range(input_args.seeds):
+        if os.path.exists(f'{os.getcwd()}/logs/{name}/{seed}/seed_logs.txt'):
+            f = open(f'{os.getcwd()}/logs/{name}/{seed}/seed_logs.txt', 'r')
+            iter_num= f.readline()
+            if iter_num+1 == end_iter:
+                continue
+            elif iter_num > start_iter:
+                DistilledPruning(model, name, path, images_train, labels_train, train_loader, test_loader, input_args,
+                     start_iter = iter_num+1, end_iter = end_iter, num_epochs_distilled = num_epochs_distilled,
+                     num_epochs_real = num_epochs_real, k = k, amount = amount, save_model = save_model,
+                     validate = validate, seed = seed, reinit = reinit, reinit_model = reinit_model,
+                     distilled_lr = distilled_lr)
+            else:
+                DistilledPruning(model, name, path, images_train, labels_train, train_loader, test_loader, input_args,
+                     start_iter = start_iter, end_iter = end_iter, num_epochs_distilled = num_epochs_distilled,
+                     num_epochs_real = num_epochs_real, k = k, amount = amount, save_model = save_model,
+                     validate = validate, seed = seed, reinit = reinit, reinit_model = reinit_model,
+                     distilled_lr = distilled_lr)
+        else:
+            DistilledPruning(model, name, path, images_train, labels_train, train_loader, test_loader, input_args,
                      start_iter = start_iter, end_iter = end_iter, num_epochs_distilled = num_epochs_distilled,
                      num_epochs_real = num_epochs_real, k = k, amount = amount, save_model = save_model,
                      validate = validate, seed = seed, reinit = reinit, reinit_model = reinit_model,
@@ -301,19 +346,19 @@ if __name__=="__main__":
     parser.add_argument("--path", default=os.getcwd(), type=str)
     parser.add_argument("--start_iter", default=0, type=int)
     parser.add_argument("--end_iter", default=30, type=int)
-    parser.add_argument("--num_epochs_distilled", default=1000, type=int)
-    parser.add_argument("--num_epochs_real", default=60, type=int)
+    parser.add_argument("--num_epochs_distilled", default=3000, type=int)
+    parser.add_argument("--num_epochs_real", default=80, type=int)
     parser.add_argument("--k", default=0, type=int)
     parser.add_argument("--amount", default=0.2, type=float)
     parser.add_argument("--save_model", default=True, type=bool)
     parser.add_argument("--validate", default=False, type=bool)
-    parser.add_argument("--seed", default=0, type=int)
+    parser.add_argument("--seeds", default=3, type=int)
     parser.add_argument("--reinit", default=False, type=bool)
     parser.add_argument("--reinit_model", default=None, type=str)
     parser.add_argument("--distilled_lr", default=0.01, type=float)
-    parser.add_argument("--distilled_pruning", default=True, type=bool)
+    parser.add_argument("--distilled_pruning", default=False, type=bool)
     # syn_data에 대해 50ipc : lr=0.01, epoch=1000 | 10ipc : lr=0.007, epoch=3000
     # real_data에 대해 lr = 0.008, batch_size=512, weight_dacay=0.0008, gamma=0.15
-    i_args = parser.parse_args()
+    input_args = parser.parse_args()
 
-    main(i_args)
+    main(input_args)
