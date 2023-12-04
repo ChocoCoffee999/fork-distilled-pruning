@@ -150,9 +150,23 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
 
     if os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/initial_weight.pth'):
         model.load_state_dict(torch.load(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/initial_weight.pth'))
-        model_rewind = copy.deepcopy(model.detach()).to(device)
+        try:
+            model_rewind = copy.deepcopy(model).to(device)
+        except RuntimeError as e:
+            print(f"Error: {e}")
+        else:
+            model_rewind = model.clone().to(device)
+        finally:
+            print("This will always be executed.")
     else:
-        model_rewind = copy.deepcopy(model.detach()).to(device)
+        try:
+            model_rewind = copy.deepcopy(model).to(device)
+        except RuntimeError as e:
+            print(f"Error: {e}")
+        else:
+            model_rewind = model.clone().to(device)
+        finally:
+            print("This will always be executed.")
         #torch.save(model.state_dict(), path + name + '_RewindWeights' + '_' + str(k))
         if not os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}'):
             if not os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}'):
@@ -341,6 +355,7 @@ def main(input_args):
     reinit_model = input_args.reinit_model
     distilled_lr = input_args.distilled_lr
     for seed in range(input_args.seeds):
+        print('-'*20 + f'seed : {seed}' + '-'*20)
         if os.path.exists(f'{os.getcwd()}/logs/{name}/{seed}/seed_logs.txt'):
             f = open(f'{os.getcwd()}/logs/{name}/{seed}/seed_logs.txt', 'r')
             iter_num= int(f.readline())
