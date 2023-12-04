@@ -40,7 +40,7 @@ import wandb
 labels_train = torch.load('./data/cifar10_10ipc_labels.pt')
 images_train = torch.load('./data/cifar10_10ipc_images.pt')
 
-batch_size = 256
+batch_size = 512
 train_dataset = torchvision.datasets.CIFAR10(root = './data',
                                                     train = True,
                                                     transform = transforms.Compose([
@@ -154,19 +154,17 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
             model_rewind = copy.deepcopy(model).to(device)
         except RuntimeError as e:
             print(f"Error: {e}")
-        else:
             model_rewind = model.clone().to(device)
         finally:
-            print("This will always be executed.")
+            print("file exist")
     else:
         try:
             model_rewind = copy.deepcopy(model).to(device)
         except RuntimeError as e:
             print(f"Error: {e}")
-        else:
             model_rewind = model.clone().to(device)
         finally:
-            print("This will always be executed.")
+            print("file don't exist")
         #torch.save(model.state_dict(), path + name + '_RewindWeights' + '_' + str(k))
         if not os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}'):
             if not os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}'):
