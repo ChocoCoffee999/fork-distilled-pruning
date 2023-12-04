@@ -145,9 +145,9 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
 
     if os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/initial_weight.pth'):
         model.load_state_dict(torch.load(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/initial_weight.pth'))
-        model_rewind = copy.deepcopy(model).to(device)
+        model_rewind = copy.deepcopy(model.detach()).to(device)
     else:
-        model_rewind = copy.deepcopy(model).to(device)
+        model_rewind = copy.deepcopy(model.detach()).to(device)
         #torch.save(model.state_dict(), path + name + '_RewindWeights' + '_' + str(k))
         if not os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}'):
             if not os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}'):
@@ -225,6 +225,10 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
             np.save(path + name + '_log', np.array([accs, zeros, totals, reinit_acc, time_takens, sparsities]))
         else:
             reinit_acc.append(0)
+        if not os.path.exists(f'{os.getcwd()}/logs/{name}/{seed}'):
+            if not os.path.exists(f'{os.getcwd()}/logs/{name}'):
+                os.mkdir(f'{os.getcwd()}/logs/{name}')
+            os.mkdir(f'{os.getcwd()}/logs/{name}/{seed}')
         f = open(f'{os.getcwd()}/logs/{name}/{seed}/seed_logs.txt', 'w')
         f.write(f'{i}')
     #If validate = False, then we still want to validate the final sparsity mask. just not all the masks.
@@ -329,7 +333,7 @@ def main(input_args):
     for seed in range(input_args.seeds):
         if os.path.exists(f'{os.getcwd()}/logs/{name}/{seed}/seed_logs.txt'):
             f = open(f'{os.getcwd()}/logs/{name}/{seed}/seed_logs.txt', 'r')
-            iter_num= f.readline()
+            iter_num= int(f.readline())
             if iter_num+1 == end_iter:
                 continue
             elif iter_num > start_iter:
