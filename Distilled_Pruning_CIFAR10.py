@@ -137,8 +137,13 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
     sparsities = []
     
     if start_iter > 0:
-        if os.path.exists(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/log_{start_iter-1}'):
-            [accs, zeros, totals, reinit_acc, time_takens, sparsities] = list(map(list, np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/log_{start_iter-1}')))
+        if os.path.exists(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/sparsities_log_{start_iter-1}'):
+            accs = list(np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/accs_log_{start_iter-1}'))
+            zeros = list(np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/zeros_log_{start_iter-1}'))
+            totals = list(np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/totals_log_{start_iter-1}'))
+            reinit_acc = list(np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/reinit_acc_log_{start_iter-1}'))
+            time_takens = list(np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/time_takens_log_{start_iter-1}'))
+            sparsities = list(np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/sparsities_log_{start_iter-1}'))
         else:
             print(f'{"-"*20}+error wrong start_iter+{"-"*20}')
     #Create rewind weights at initailization
@@ -206,7 +211,12 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
                         os.mkdir(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}')
                     os.mkdir(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}')
                 os.mkdir(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}')
-            np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/log_{i}', np.array([accs, zeros, totals, reinit_acc, time_takens, sparsities]))
+            np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/accs_log_{i}', np.array(accs))
+            np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/zeros_log_{i}', np.array(zeros))
+            np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/totals_log_{i}', np.array(totals))
+            np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/reinit_acc_log_{i}', np.array(reinit_acc))
+            np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/time_takens_log_{i}', np.array(time_takens))
+            np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/sparsities_log_{i}', np.array(sparsities))
         
         if reinit:
             #Rewind Weights to Reinit Model
