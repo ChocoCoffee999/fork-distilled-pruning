@@ -14,11 +14,12 @@ import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
 import math
 import copy
-from torch.optim.lr_scheduler import MultiStepLR
+from torch.optim.lr_scheduler import MultiStepLR, CosineAnnealingLR
 from torchvision.models import resnet50, resnet34, resnet18, wide_resnet50_2, ResNet50_Weights, alexnet
 from transformer_models import cait, convnet, simplevit, swin,  vit, vit_small
 import gc
 import os
+import sys
 import pandas as pd
 from torchvision.io import read_image
 from flax.training import checkpoints
@@ -65,11 +66,12 @@ test_loader = torch.utils.data.DataLoader(dataset = test_dataset,
                                                     shuffle = True)
 
 #Standard train function with hyperparameters used in paper set as default
-def train(model,train_loader, num_epochs, lr = .0008, weight_decay = .0008, gamma = .15, milestones = [50,65,80]):
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay = weight_decay)
+def train(model,train_loader, num_epochs, lr = 1e-4, weight_decay = .0008, gamma = .15, milestones = [50,65,80]):
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)#, weight_decay = weight_decay)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
     cost = nn.CrossEntropyLoss()
-    scheduler = MultiStepLR(optimizer, milestones=milestones, gamma= gamma)
+    #scheduler = MultiStepLR(optimizer, milestones=milestones, gamma= gamma)
+    scheduler = CosineAnnealingLR(optimizer, num_epochs)# milestones=milestones, gamma= gamma)
     total_step = len(train_loader)
     for epoch in range(num_epochs):
         for i, (images, labels) in enumerate(train_loader):  
@@ -81,7 +83,8 @@ def train(model,train_loader, num_epochs, lr = .0008, weight_decay = .0008, gamm
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-        scheduler.step()
+        #scheduler.step()
+        scheduler.step(epoch-1)
     pass
 
 #Standard test function, prints & returns test accuracy
@@ -136,35 +139,31 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
     time_takens = []
     sparsities = []
     
-    if start_iter > 0:
-        if os.path.exists(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/sparsities_log_{start_iter-1}'):
-            accs = list(np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/accs_log_{start_iter-1}'))
-            zeros = list(np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/zeros_log_{start_iter-1}'))
-            totals = list(np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/totals_log_{start_iter-1}'))
-            reinit_acc = list(np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/reinit_acc_log_{start_iter-1}'))
-            time_takens = list(np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/time_takens_log_{start_iter-1}'))
-            sparsities = list(np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/sparsities_log_{start_iter-1}'))
-        else:
-            print(f'{"-"*20}+error wrong start_iter+{"-"*20}')
     #Create rewind weights at initailization
 
-    if os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/initial_weight.pth'):
-        model.load_state_dict(torch.load(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/initial_weight.pth'))
-        try:
+    if start_iter > 0:
+        if os.path.exists(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/sparsities_log_{start_iter-1}.npy'):
+            accs = list(np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/accs_log_{start_iter-1}.npy'))
+            zeros = list(np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/zeros_log_{start_iter-1}.npy'))
+            totals = list(np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/totals_log_{start_iter-1}.npy'))
+            reinit_acc = list(np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/reinit_acc_log_{start_iter-1}.npy'))
+            time_takens = list(np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/time_takens_log_{start_iter-1}.npy'))
+            sparsities = list(np.load(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/sparsities_log_{start_iter-1}.npy'))
+            print(f'data load success with *_log_{start_iter-1}.npy')
+        else:
+            print(f'{"-"*20}error wrong start_iter(load data){"-"*20}')
+            sys.exit()
+        if os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/weight_{start_iter-1}.pth'):
+            model.load_state_dict(torch.load(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/initial_weight.pth'))
             model_rewind = copy.deepcopy(model).to(device)
-        except RuntimeError as e:
-            print(f"Error: {e}")
-            model_rewind = model.clone().to(device)
-        finally:
-            print("file exist")
+            prune.global_unstructured(get_parameters_to_prune(model),pruning_method=prune.L1Unstructured,amount=amount)
+            model.load_state_dict(torch.load(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/weight_{start_iter-1}.pth'))
+            print(f'model load success with weight_{start_iter-1}.pth')
+        else:
+            print(f'{"-"*20}error wrong start_iter(load model){"-"*20}')
+            sys.exit()
     else:
-        try:
-            model_rewind = copy.deepcopy(model).to(device)
-        except RuntimeError as e:
-            print(f"Error: {e}")
-            model_rewind = model.clone().to(device)
-        finally:
-            print("file don't exist")
+        model_rewind = copy.deepcopy(model).to(device)
         #torch.save(model.state_dict(), path + name + '_RewindWeights' + '_' + str(k))
         if not os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}'):
             if not os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}'):
