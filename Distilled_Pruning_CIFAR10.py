@@ -339,7 +339,11 @@ def main(input_args):
             mlp_dim = 256,
             dropout = 0.1,
             emb_dropout = 0.1)
-    name = input_args.name
+    if input_args.model != input_args.name:
+        name = input_args.model
+        print(f'input model and name is diffrent, name change {input_args.name} to {input_args.model}')
+    else:
+        name = input_args.name
     path = input_args.path
     start_iter = input_args.start_iter
     end_iter = input_args.end_iter
@@ -399,5 +403,5 @@ if __name__=="__main__":
     # syn_data에 대해 50ipc : lr=0.01, epoch=1000 | 10ipc : lr=0.007, epoch=3000
     # real_data에 대해 lr = 0.008, batch_size=512, weight_dacay=0.0008, gamma=0.15
     input_args = parser.parse_args()
-
+    print(f'distilled_pruning : {input_args.distilled_pruning} | validate : {input_args.validate} | num_epochs_distilled : {input_args.num_epochs_distilled} | num_epochs_real : {input_args.num_epochs_real}')
     main(input_args)
