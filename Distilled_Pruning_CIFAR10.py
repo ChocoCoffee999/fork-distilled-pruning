@@ -40,7 +40,7 @@ import wandb
 labels_train = torch.load('./data/cifar10_10ipc_labels.pt')
 images_train = torch.load('./data/cifar10_10ipc_images.pt')
 
-batch_size = 512
+batch_size = 256
 train_dataset = torchvision.datasets.CIFAR10(root = './data',
                                                     train = True,
                                                     transform = transforms.Compose([
