@@ -41,7 +41,7 @@ import wandb
 labels_train = torch.load('./data/cifar10_10ipc_labels.pt')
 images_train = torch.load('./data/cifar10_10ipc_images.pt')
 
-batch_size = 256
+batch_size = 512
 train_dataset = torchvision.datasets.CIFAR10(root = './data',
                                                     train = True,
                                                     transform = transforms.Compose([
@@ -173,7 +173,8 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
                     os.mkdir(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}')
                 os.mkdir(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}')
             os.mkdir(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}')
-        torch.save(model.state_dict(), f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/initial_weight.pth') 
+        torch.save(model.state_dict(), f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/initial_weight.pth')
+        print("model initialization success")
     
     #Use if you want to try rewinding to an early point in training, this does not work well, so we suggest k=0 always.
     if k != 0:
@@ -246,12 +247,14 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
             np.save(path + name + '_log', np.array([accs, zeros, totals, reinit_acc, time_takens, sparsities]))
         else:
             reinit_acc.append(0)
+
         if not os.path.exists(f'{os.getcwd()}/logs/{name}/{seed}'):
             if not os.path.exists(f'{os.getcwd()}/logs/{name}'):
                 os.mkdir(f'{os.getcwd()}/logs/{name}')
             os.mkdir(f'{os.getcwd()}/logs/{name}/{seed}')
         f = open(f'{os.getcwd()}/logs/{name}/{seed}/seed_logs.txt', 'w')
         f.write(f'{i}')
+        print(f'write_{i}')
     #If validate = False, then we still want to validate the final sparsity mask. just not all the masks.
     if not validate:
         train(model, train_loader,num_epochs = num_epochs_real)
@@ -359,10 +362,11 @@ def main(input_args):
         print('-'*20 + f'seed : {seed}' + '-'*20)
         if os.path.exists(f'{os.getcwd()}/logs/{name}/{seed}/seed_logs.txt'):
             f = open(f'{os.getcwd()}/logs/{name}/{seed}/seed_logs.txt', 'r')
-            iter_num= int(f.readline())
+            data = f.readline()
+            iter_num= int(data)
             if iter_num+1 == end_iter:
                 continue
-            elif iter_num > start_iter:
+            elif iter_num >= start_iter:
                 DistilledPruning(model, name, path, images_train, labels_train, train_loader, test_loader, input_args,
                      start_iter = iter_num+1, end_iter = end_iter, num_epochs_distilled = num_epochs_distilled,
                      num_epochs_real = num_epochs_real, k = k, amount = amount, save_model = save_model,
