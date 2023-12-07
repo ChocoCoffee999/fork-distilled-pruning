@@ -252,8 +252,8 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
             if not os.path.exists(f'{os.getcwd()}/logs/{name}'):
                 os.mkdir(f'{os.getcwd()}/logs/{name}')
             os.mkdir(f'{os.getcwd()}/logs/{name}/{seed}')
-        f = open(f'{os.getcwd()}/logs/{name}/{seed}/seed_logs.txt', 'w')
-        f.write(f'{i}')
+        with open(f'{os.getcwd()}/logs/{name}/{seed}/seed_logs.txt', 'w') as f:
+            f.write(f'{i}')
         print(f'write_{i}')
     #If validate = False, then we still want to validate the final sparsity mask. just not all the masks.
     if not validate:
@@ -361,8 +361,8 @@ def main(input_args):
     for seed in range(input_args.seeds):
         print('-'*20 + f'seed : {seed}' + '-'*20)
         if os.path.exists(f'{os.getcwd()}/logs/{name}/{seed}/seed_logs.txt'):
-            f = open(f'{os.getcwd()}/logs/{name}/{seed}/seed_logs.txt', 'r')
-            data = f.readline()
+            with open(f'{os.getcwd()}/logs/{name}/{seed}/seed_logs.txt', 'r') as f:
+                data = f.readline()
             iter_num= int(data)
             if iter_num+1 == end_iter:
                 continue
