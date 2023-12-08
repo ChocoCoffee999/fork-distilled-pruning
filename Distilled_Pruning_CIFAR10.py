@@ -183,24 +183,30 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
         
     for i in range(start_iter,end_iter):
         print('Distilled Pruning Iteration ', i)
-        #Set distilled pruning training args for MTT eval
-        args = argparse.Namespace(lr_net='.01', device='cuda', epoch_eval_train=str(num_epochs_distilled),batch_train=512,dataset='cifar10',dsa=True,dsa_strategy='color_crop_cutout_flip_scale_rotate',dsa_param = ParamDiffAug(), dc_aug_param=None, zca_trans=kornia.enhance.ZCAWhitening(eps=0.1, compute_inv=True)) #, zca_trans=kornia.enhance.ZCAWhitening(eps=0.1, compute_inv=True)
-        #MTT Training on Distilled Data
-        if input_args.distilled_pruning:
-            model, acc_train_list, acc_test, train_time = evaluate_synset(i, model,images_train,labels_train,test_loader,args)
+        if os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/weight_{i}.pth'):
+            print(f'iter{i} pruning already ')
+            model.load_state_dict(torch.load(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/weight_{i}.pth'))
+            print(f'load iter{i} pruning model')
+            model.to(device)
         else:
-            model, acc_train_list, acc_test, train_time = evaluate_sourceset(i, model,train_loader,test_loader,args)
-        time_takens.append(train_time)
-        prune.global_unstructured(get_parameters_to_prune(model),pruning_method=prune.L1Unstructured,amount=amount)
-        #Rewind Weights
-        for idx, (module, _) in enumerate(get_parameters_to_prune(model)):
-            with torch.no_grad():
-                module_rewind = get_parameters_to_prune(model_rewind)[idx][0]
-                module.weight_orig.copy_(module_rewind.weight)
+            #Set distilled pruning training args for MTT eval
+            args = argparse.Namespace(lr_net='.01', device='cuda', epoch_eval_train=str(num_epochs_distilled),batch_train=512,dataset='cifar10',dsa=True,dsa_strategy='color_crop_cutout_flip_scale_rotate',dsa_param = ParamDiffAug(), dc_aug_param=None, zca_trans=kornia.enhance.ZCAWhitening(eps=0.1, compute_inv=True)) #, zca_trans=kornia.enhance.ZCAWhitening(eps=0.1, compute_inv=True)
+            #MTT Training on Distilled Data
+            if input_args.distilled_pruning:
+                model, acc_train_list, acc_test, train_time = evaluate_synset(i, model,images_train,labels_train,test_loader,args)
+            else:
+                model, acc_train_list, acc_test, train_time = evaluate_sourceset(i, model,train_loader,test_loader,args)
+            time_takens.append(train_time)
+            prune.global_unstructured(get_parameters_to_prune(model),pruning_method=prune.L1Unstructured,amount=amount)
+            #Rewind Weights
+            for idx, (module, _) in enumerate(get_parameters_to_prune(model)):
+                with torch.no_grad():
+                    module_rewind = get_parameters_to_prune(model_rewind)[idx][0]
+                    module.weight_orig.copy_(module_rewind.weight)
     
-        if save_model:
-            #torch.save(model.state_dict(), path + name + '_iter' + str(i+1))
-            torch.save(model.state_dict(), f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/weight_{i}.pth')
+            if save_model:
+                #torch.save(model.state_dict(), path + name + '_iter' + str(i+1))
+                torch.save(model.state_dict(), f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/weight_{i}.pth')
             
         #Rewind weights back to initialization and train on real data to validate this sparsity mask
         if validate:
@@ -366,15 +372,10 @@ def main(input_args):
             iter_num= int(data)
             if iter_num+1 == end_iter:
                 continue
-            elif iter_num >= start_iter:
+            else:
+                print(f'save iteration : {iter_num} | statr_iter : {iter_num+1}')
                 DistilledPruning(model, name, path, images_train, labels_train, train_loader, test_loader, input_args,
                      start_iter = iter_num+1, end_iter = end_iter, num_epochs_distilled = num_epochs_distilled,
-                     num_epochs_real = num_epochs_real, k = k, amount = amount, save_model = save_model,
-                     validate = validate, seed = seed, reinit = reinit, reinit_model = reinit_model,
-                     distilled_lr = distilled_lr)
-            else:
-                DistilledPruning(model, name, path, images_train, labels_train, train_loader, test_loader, input_args,
-                     start_iter = start_iter, end_iter = end_iter, num_epochs_distilled = num_epochs_distilled,
                      num_epochs_real = num_epochs_real, k = k, amount = amount, save_model = save_model,
                      validate = validate, seed = seed, reinit = reinit, reinit_model = reinit_model,
                      distilled_lr = distilled_lr)
