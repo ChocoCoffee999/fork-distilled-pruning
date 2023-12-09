@@ -129,8 +129,117 @@ def sparsity_print(model):
     #TODO: Implement Node Sparsity
     return zero, total
 
+def get_transformer_network(args):
+    if args.model == "cait":
+        model = cait.CaiT( 
+            image_size = 32,
+            patch_size = 4,
+            num_classes = 10,
+            dim = 512,
+            depth = 6,   # depth of transformer for patch to patch attention only
+            cls_depth=2, # depth of cross attention of CLS tokens to patch
+            heads = 8,
+            mlp_dim = 512,
+            dropout = 0.1,
+            emb_dropout = 0.1,
+            layer_dropout = 0.05)
+    elif args.model == "cait_small":
+        model = cait.CaiT(
+            image_size = 32,
+            patch_size = 4,
+            num_classes = 10,
+            dim = 512,
+            depth = 6,   # depth of transformer for patch to patch attention only
+            cls_depth=2, # depth of cross attention of CLS tokens to patch
+            heads = 6,
+            mlp_dim = 256,
+            dropout = 0.1,
+            emb_dropout = 0.1,
+            layer_dropout = 0.05)
+    elif args.model == "swin":
+        model = swin.swin_t(
+            window_size=4,
+            num_classes = 10,
+            downscaling_factors=(2,2,2,1))
+    elif args.model == "simplevit":
+        model = simplevit.SimpleViT(
+            image_size = 32,
+            patch_size = 4,
+            num_classes = 10,
+            dim = 512,
+            depth = 6,
+            heads = 8,
+            mlp_dim = 512)
+    elif args.model == "vit":
+        model = vit.ViT(
+            image_size = 32,
+            patch_size = 4,
+            num_classes = 10,
+            dim = 512,
+            depth = 6,
+            heads = 8,
+            mlp_dim = 512,
+            dropout = 0.1,
+            emb_dropout = 0.1)
+    elif args.model == "vit_small":
+        model = vit_small.ViT(
+            image_size = 32,
+            patch_size = 4,
+            num_classes = 10,
+            dim = 512,
+            depth = 6,
+            heads = 8,
+            mlp_dim = 512,
+            dropout = 0.1,
+            emb_dropout = 0.1)
+    elif args.model == "vit_tiny":
+        model = vit_small.ViT(
+            image_size = 32,
+            patch_size = 4,
+            num_classes = 10,
+            dim = 512,
+            depth = 4,
+            heads = 6,
+            mlp_dim = 256,
+            dropout = 0.1,
+            emb_dropout = 0.1)
+    return model
+
+def model_test():
+    model1 = vit_small.ViT(
+            image_size = 32,
+            patch_size = 4,
+            num_classes = 10,
+            dim = 512,
+            depth = 4,
+            heads = 6,
+            mlp_dim = 256,
+            dropout = 0.1,
+            emb_dropout = 0.1)
+    model2 = vit_small.ViT(
+            image_size = 32,
+            patch_size = 4,
+            num_classes = 10,
+            dim = 512,
+            depth = 4,
+            heads = 6,
+            mlp_dim = 256,
+            dropout = 0.1,
+            emb_dropout = 0.1)
+    model1.load_state_dict(torch.load(f'{os.getcwd()}/saves/syn/vit_tiny/0/initial_weight.pth'))
+    model2.load_state_dict(torch.load(f'{os.getcwd()}/saves/syn/vit_tiny/1/initial_weight.pth'))
+
+    params1 = model1.state_dict()
+    params2 = model2.state_dict()
+
+    for key in params1:
+        if torch.equal(params1[key], params2[key]):
+            print(f"Parameter '{key}' is equal in both models.")
+        else:
+            print(f"Parameter '{key}' is NOT equal in both models.")
+
 def DistilledPruning(model, name, path, images_train, labels_train, train_loader, test_loader, input_args, start_iter = 0, end_iter = 30, num_epochs_distilled = 1000, num_epochs_real = 60, k = 0, amount = .2, save_model = True, validate = False, seed = 0, reinit = False, reinit_model = None, distilled_lr = .01):
-    torch.manual_seed(seed)
+    torch.manual_seed(0)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
     accs = []
     zeros = []
@@ -163,18 +272,22 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
             print(f'{"-"*20}error wrong start_iter(load model){"-"*20}')
             sys.exit()
     else:
-        model_rewind = copy.deepcopy(model).to(device)
-        #torch.save(model.state_dict(), path + name + '_RewindWeights' + '_' + str(k))
-        if not os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}'):
-            if not os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}'):
-                if not os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}'):
-                    if not os.path.exists(f'{os.getcwd()}/saves'):
-                        os.mkdir(f'{os.getcwd()}/saves')
-                    os.mkdir(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}')
-                os.mkdir(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}')
-            os.mkdir(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}')
-        torch.save(model.state_dict(), f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/initial_weight.pth')
-        print("model initialization success")
+        if os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/initial_weight.pth'):
+            model.load_state_dict(torch.load(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/initial_weight.pth'))
+            model_rewind = copy.deepcopy(model).to(device)
+        else:
+            model_rewind = copy.deepcopy(model).to(device)
+            #torch.save(model.state_dict(), path + name + '_RewindWeights' + '_' + str(k))
+            if not os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}'):
+                if not os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}'):
+                    if not os.path.exists(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}'):
+                        if not os.path.exists(f'{os.getcwd()}/saves'):
+                            os.mkdir(f'{os.getcwd()}/saves')
+                        os.mkdir(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}')
+                    os.mkdir(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}')
+                os.mkdir(f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}')
+            torch.save(model.state_dict(), f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/initial_weight.pth')
+            print("model initialization success")
     
     #Use if you want to try rewinding to an early point in training, this does not work well, so we suggest k=0 always.
     if k != 0:
@@ -273,80 +386,6 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
     np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/sparsities.dat', np.array(sparsities))
 
 def main(input_args):
-    model = None
-    if input_args.model == "cait":
-        model = cait.CaiT( 
-            image_size = 32,
-            patch_size = 4,
-            num_classes = 10,
-            dim = 512,
-            depth = 6,   # depth of transformer for patch to patch attention only
-            cls_depth=2, # depth of cross attention of CLS tokens to patch
-            heads = 8,
-            mlp_dim = 512,
-            dropout = 0.1,
-            emb_dropout = 0.1,
-            layer_dropout = 0.05)
-    elif input_args.model == "cait_small":
-        model = cait.CaiT(
-            image_size = 32,
-            patch_size = 4,
-            num_classes = 10,
-            dim = 512,
-            depth = 6,   # depth of transformer for patch to patch attention only
-            cls_depth=2, # depth of cross attention of CLS tokens to patch
-            heads = 6,
-            mlp_dim = 256,
-            dropout = 0.1,
-            emb_dropout = 0.1,
-            layer_dropout = 0.05)
-    elif input_args.model == "swin":
-        model = swin.swin_t(
-            window_size=4,
-            num_classes = 10,
-            downscaling_factors=(2,2,2,1))
-    elif input_args.model == "simplevit":
-        model = simplevit.SimpleViT(
-            image_size = 32,
-            patch_size = 4,
-            num_classes = 10,
-            dim = 512,
-            depth = 6,
-            heads = 8,
-            mlp_dim = 512)
-    elif input_args.model == "vit":
-        model = vit.ViT(
-            image_size = 32,
-            patch_size = 4,
-            num_classes = 10,
-            dim = 512,
-            depth = 6,
-            heads = 8,
-            mlp_dim = 512,
-            dropout = 0.1,
-            emb_dropout = 0.1)
-    elif input_args.model == "vit_small":
-        model = vit_small.ViT(
-            image_size = 32,
-            patch_size = 4,
-            num_classes = 10,
-            dim = 512,
-            depth = 6,
-            heads = 8,
-            mlp_dim = 512,
-            dropout = 0.1,
-            emb_dropout = 0.1)
-    elif input_args.model == "vit_tiny":
-        model = vit_small.ViT(
-            image_size = 32,
-            patch_size = 4,
-            num_classes = 10,
-            dim = 512,
-            depth = 4,
-            heads = 6,
-            mlp_dim = 256,
-            dropout = 0.1,
-            emb_dropout = 0.1)
     if input_args.model != input_args.name:
         name = input_args.model
         print(f'input model and name is diffrent, name change {input_args.name} to {input_args.model}')
@@ -373,6 +412,7 @@ def main(input_args):
             if iter_num+1 == end_iter:
                 continue
             else:
+                model = get_transformer_network(input_args)
                 print(f'save iteration : {iter_num} | statr_iter : {iter_num+1}')
                 DistilledPruning(model, name, path, images_train, labels_train, train_loader, test_loader, input_args,
                      start_iter = iter_num+1, end_iter = end_iter, num_epochs_distilled = num_epochs_distilled,
@@ -380,6 +420,7 @@ def main(input_args):
                      validate = validate, seed = seed, reinit = reinit, reinit_model = reinit_model,
                      distilled_lr = distilled_lr)
         else:
+            model = get_transformer_network(input_args)
             DistilledPruning(model, name, path, images_train, labels_train, train_loader, test_loader, input_args,
                      start_iter = start_iter, end_iter = end_iter, num_epochs_distilled = num_epochs_distilled,
                      num_epochs_real = num_epochs_real, k = k, amount = amount, save_model = save_model,
