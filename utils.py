@@ -388,7 +388,7 @@ def evaluate_synset(it_eval, net, images_train, labels_train, testloader, args, 
     else:
         return net, acc_train_list, acc_test, time_train
 
-def evaluate_sourceset(it_eval, net, trainloader, testloader, args, return_loss=False, texture=False):
+def evaluate_loader(it_eval, net, trainloader, testloader, args, return_loss=False, texture=False):
     net = net.to(args.device)
     lr = float(args.lr_net)
     Epoch = int(args.epoch_eval_train)
