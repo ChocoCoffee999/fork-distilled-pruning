@@ -205,29 +205,11 @@ def get_transformer_network(args):
             emb_dropout = 0.1)
     return model
 
-def model_test():
-    model1 = vit_small.ViT(
-            image_size = 32,
-            patch_size = 4,
-            num_classes = 10,
-            dim = 512,
-            depth = 4,
-            heads = 6,
-            mlp_dim = 256,
-            dropout = 0.1,
-            emb_dropout = 0.1)
-    model2 = vit_small.ViT(
-            image_size = 32,
-            patch_size = 4,
-            num_classes = 10,
-            dim = 512,
-            depth = 4,
-            heads = 6,
-            mlp_dim = 256,
-            dropout = 0.1,
-            emb_dropout = 0.1)
-    model1.load_state_dict(torch.load(f'{os.getcwd()}/saves/syn/vit_tiny/0/initial_weight.pth'))
-    model2.load_state_dict(torch.load(f'{os.getcwd()}/saves/syn/vit_tiny/1/initial_weight.pth'))
+def model_test(data_type1, data_type2, name1, name2, seed1, seed2, args):
+    model1 = get_transformer_network(args)
+    model2 = get_transformer_network(args)
+    model1.load_state_dict(torch.load(f'{os.getcwd()}/saves/{data_type1}/{name1}/{seed1}/initial_weight.pth'))
+    model2.load_state_dict(torch.load(f'{os.getcwd()}/saves/{data_type2}/{name2}/{seed2}/initial_weight.pth'))
 
     params1 = model1.state_dict()
     params2 = model2.state_dict()
