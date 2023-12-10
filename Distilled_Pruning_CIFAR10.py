@@ -301,6 +301,7 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
     
             if save_model:
                 #torch.save(model.state_dict(), path + name + '_iter' + str(i+1))
+                np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/time_takens_log_{i}', np.array(time_takens))
                 torch.save(model.state_dict(), f'{os.getcwd()}/saves/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/weight_{i}.pth')
             
         #Rewind weights back to initialization and train on real data to validate this sparsity mask
@@ -328,8 +329,9 @@ def DistilledPruning(model, name, path, images_train, labels_train, train_loader
             np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/zeros_log_{i}', np.array(zeros))
             np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/totals_log_{i}', np.array(totals))
             np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/reinit_acc_log_{i}', np.array(reinit_acc))
-            np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/time_takens_log_{i}', np.array(time_takens))
             np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/sparsities_log_{i}', np.array(sparsities))
+            if not save_model:
+                np.save(f'{os.getcwd()}/dumps/{"syn" if input_args.distilled_pruning else "source"}/{name}/{seed}/time_takens_log_{i}', np.array(time_takens))
         
         if reinit:
             #Rewind Weights to Reinit Model
